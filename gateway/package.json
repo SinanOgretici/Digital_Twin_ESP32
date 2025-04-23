@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "axios": "^1.6.8",
+    "brain.js": "^2.0.0-beta.23",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "http": "^0.0.1-security",
+    "ml5": "^0.12.2",
+    "path": "^0.12.7",
+    "socketio": "^1.0.0",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.17.0"
+  }
+}

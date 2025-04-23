@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Tracker</title>
+    <!-- Leaflet kütüphanesini ekleyin -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        /* Tam ekran stilini belirle */
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+						
+        }
+        
+        #container {
+		
+            width: 100%;
+            height: 100%;
+		
+        }
+
+        #map {
+            width: 45%;
+            height: 100%;
+            float: left;
+        }
+        
+        #panel {
+            width: 55%;
+            height: 100%;
+            overflow-y: auto;
+            background-color: #f0f0f0;
+            padding: 10px;
+            box-sizing: border-box;
+            float: left;
+            font-family: Arial, sans-serif;
+																								  
+																						   
+        }
+        
+        h2 {
+            margin-top: 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+			font-size: 14px;
+        }
+		
+		td {
+			font-size: 13px;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+		
+		.marker-icon {
+			filter: drop-shadow(0px 0px 5px rgba(0, 0, 0, 0.5)); /* Gölgeli efekti sağlar */
+		}
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="map"></div>
+			<div id="panel">
+				<h2>Zamana göre tüketilen enerji (mA/sec)</h2>
+				<div id="chartContainer" style="height: 50%;">
+					<canvas id="sensorChart"></canvas>
+				</div>
+				<h2>Tahmini Saatlik Rüzgar Hızı (km/s)</h2>
+				<div id="chartContainer2" style="height: 50%;">
+					<canvas id="weatherChart"></canvas>
+				</div>
+				<div id="tableContainer" style="height: 50%;">
+					<h2>Cihaz Son 10 Veri</h2>
+					<table id="dataGrid">
+						<thead>
+							<tr>
+								<th>Zaman Damgası</th>
+								<th>Sensör1 Tüketim(mA/sec)</th>
+								<th>Sensör2 Tüketim(mA/sec)</th>
+								<th>Sensör3 Tüketim(mA/sec)</th>
+								<th>Rüzgar Üretim(mA/sec)</th>
+								<th>Solar Üretim(mA/sec)</th>
+								<th>Pil(mA)</th>
+								<th>İletim Periyodu(sec)</th>
+								<th>Güç Modu</th>
+							</tr>
+						</thead>
+						<tbody></tbody>
+					</table>
+				</div>
+			</div>
+    </div>
+	
+    <!-- Leaflet kütüphanesini ekleyin -->
+    <script src="./scripts/leaflet.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+	
+	
+    <script>
+        // WebSocket bağlantısı kurma
+        //const ws = new WebSocket('ws://localhost:3000');
+		
+	
+		
+		
+		    // Grafik için başlangıç yapılandırması
+			let chart = new Chart(document.getElementById('sensorChart'), {
+				type: 'bar',
+				data: {
+					labels: [], // Zaman damgaları
+					datasets: [
+					
+					{
+						label: 'YOĞUN',
+						backgroundColor: 'RGB(200, 0, 0)',
+						borderColor: 'RGB(200, 0, 0)',
+						fill: false,
+						borderWidth: 4, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					,{
+						label: 'ORTA',
+						backgroundColor: 'RGB(255, 140, 0)',
+						borderColor: 'RGB(255, 140, 0)',
+						fill: false,
+						borderWidth: 2, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					,{
+						label: 'HAFİF',
+						backgroundColor: 'RGB(255, 220, 100)',
+						borderColor: 'RGB(255, 220, 100)',
+						fill: false,
+						borderWidth: 2, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					
+					
+					
+					]
+				},
+				options: {
+				responsive: true,
+				maintainAspectRatio: false, // Duyarlılığı sağla
+					scales: {
+						x: {
+							type: 'time',
+							time: {
+								unit: 'second',
+								tooltipFormat: 'yyyy-MM-dd HH:mm:ss'
+							},
+							displayFormats: {
+								quarter: 'MMM YYYY'
+							},
+						min: new Date(Date.now() - 3 * 60 * 1000),
+                        max: new Date()
+						},
+						y: {
+							beginAtZero: true
+						}
+					},
+					
+					barThickness: 3,
+					animation: false
+				}
+			});
+			
+			
+					    // Grafik için başlangıç yapılandırması
+			let chart2 = new Chart(document.getElementById('weatherChart'), {
+				type: 'bar',
+				data: {
+					labels: [], // Zaman damgaları
+					datasets: [
+					
+					{
+						label: 'YOĞUN',
+						backgroundColor: 'RGB(0, 200, 0)',
+						borderColor: 'RGB(0, 200, 0)',
+						fill: false,
+						borderWidth: 4, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					,{
+						label: 'ORTA',
+						backgroundColor: 'RGB(0, 150, 150)',
+						borderColor: 'RGB(, 150, 150)',
+						fill: false,
+						borderWidth: 2, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					,{
+						label: 'HAFİF',
+						backgroundColor: 'RGB(192, 192, 192)',
+						borderColor: 'RGB(192, 192, 192)',
+						fill: false,
+						borderWidth: 2, // Çubuk kalınlığı
+						data: [], // Sensör toplamları
+					}
+					
+					
+					
+					]
+				},
+				options: {
+					scales: {
+						x: {
+							type: 'time',
+							time: {
+								unit: 'second',
+								tooltipFormat: 'yyyy-MM-dd HH:mm'
+							},
+							displayFormats: {
+								quarter: 'MMM YYYY'
+							},
+						min: new Date(Date.now() - 1 * 60 * 1000),
+                        max: new Date()
+						},
+						y: {
+							beginAtZero: true
+						}
+					},
+					
+					barThickness: 3
+				}
+			});
+			
+			
+		
+		 let selectedDeviceId = null;
+
+        // Harita oluşturma ve cihazları gösterme işlemleri
+        document.addEventListener('DOMContentLoaded', () => {
+            // OpenStreetMap haritasını oluştur
+			
+			const turkeyBounds = [
+			[35.0, 25.0], // Batı, Kuzeybatı
+			[42.0, 45.0]  // Doğu, Güneydoğu
+		];
+			
+            const map = L.map('map').fitBounds(turkeyBounds);
+			
+			const greenIcon = L.icon({
+				iconUrl: './images/device-green.png',
+				iconSize: [40, 40],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34],
+				className: 'marker-icon' // CSS stilini uygula
+			});
+
+			const redIcon = L.icon({
+				iconUrl: './images/device-red.png',
+				iconSize: [40, 40],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34],
+				className: 'marker-icon' // CSS stilini uygula
+			});
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+            // Oluşturulan marker'ları depolamak için bir nesne oluşturalım
+            const markers = {};
+
+            
+			
+			
+			
+			
+			
+			
+			
+			let ws;
+        const connectWebSocket = () => {
+            ws = new WebSocket('ws://localhost:3000');
+
+            ws.onopen = () => {
+                console.log('WebSocket bağlantısı kuruldu.');
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.type === "devices") {
+                    // Haritadaki marker'ları güncelle
+                    updateMarkers(message.data);
+                } else if (message.type === "device_history") {
+                    // Paneldeki verileri güncelle
+                    updatePanel(message.data);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket bağlantısı kapandı. 5 saniye sonra yeniden bağlanıyor...');
+                setTimeout(connectWebSocket, 5000); // 5 saniye sonra yeniden bağlan
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket hatası:', error);
+                ws.close();
+            };
+        };
+
+        connectWebSocket();
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+
+            // Haritadaki marker'ları güncelleyen fonksiyon
+            function updateMarkers(devices) {
+                const existingDeviceIds = Object.keys(markers);
+
+                // Her cihaz için kontrol et
+                devices.forEach(device => {
+                    // Cihazın ID'sini al
+                    const deviceId = device.ID;
+
+                    // Eğer cihaz listede yoksa, marker'ı kaldır
+                    if (!existingDeviceIds.includes(deviceId.toString())) {
+                        if (markers[deviceId]) {
+                            map.removeLayer(markers[deviceId]);
+                            delete markers[deviceId];
+                        }
+                    }
+
+                    // Cihazın konumunu al
+                    const latLng = [device.LATITUDE, device.LONGITUDE];
+					
+					const localTimestamp = new Date(device.TIMESTAMP).toLocaleString();
+					
+					const timestamp = new Date(device.TIMESTAMP);
+					
+					const fiveMinutesAgo = new Date();
+					
+					fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 1);
+					
+					
+
+
+                    // Cihazın bilgilerini popup içeriğine ekle
+                    const popupContent = `
+						<b>Cihaz ID:</b> ${device.ID}<br>
+						<b>Enlem:</b> ${device.LATITUDE}<br>
+						<b>Boylam:</b> ${device.LONGITUDE}<br>
+						<b>Sensör1 Tüketim(mA/sec):</b> ${device.SENSOR1}<br>
+						<b>Sensör2 Tüketim(mA/sec):</b> ${device.SENSOR2}<br>
+						<b>Sensör3 Tüketim(mA/sec):</b> ${device.SENSOR3}<br>
+						<b>TCP Port:</b> ${device.PORT}<br>
+						<b>Pil(mA):</b> ${device.BATTERY_STATUS}<br>
+						<b>İletim Periyodu(sec):</b> ${device.PING_INTERVAL}<br>
+						<b>Gateway IP Port:</b> ${device.GTW_IP_PORT}<br>
+						<b>Solar Üretim(mA/sec):</b> ${device.SOLAR_POWER}<br>
+						<b>Rüzgar Üretim(mA/sec):</b> ${device.WIND_POWER}<br>
+						<b>Güç Modu:</b> ${device.POWER_MODE}<br>
+						<b>Son Görülme:</b> ${localTimestamp}<br>
+                    `;
+
+                    // Eğer marker varsa, sadece popup içeriğini güncelle
+                    if (markers[deviceId]) {
+                        markers[deviceId].setPopupContent(popupContent);
+						markers[deviceId].setLatLng(latLng);
+						
+						        if (timestamp < fiveMinutesAgo) {
+									markers[deviceId].setIcon(redIcon);
+								} else {
+									markers[deviceId].setIcon(greenIcon);
+								}
+						
+						
+                    } else {
+                        // Yeni marker oluştur ve haritaya ekle
+                        const marker = L.marker(latLng).addTo(map).bindPopup(popupContent);
+                        marker.on('click', () => {
+						
+							  selectedDeviceId = deviceId;
+								
+                            // Marker'a tıklandığında sunucuya deviceId bilgisini gönder
+                            ws.send(JSON.stringify({ "type": 'getLast20', "deviceId": deviceId }));
+                        });
+						
+						if (timestamp < fiveMinutesAgo) {
+							marker.setIcon(redIcon);
+						} else {
+							marker.setIcon(greenIcon);
+						}
+						
+                        markers[deviceId] = marker;
+                    }
+                });
+
+                // Mevcut cihazların listesinde olup, ancak güncellenmemiş cihazlar için marker'ları kaldır
+                existingDeviceIds.forEach(existingDeviceId => {
+                    if (!devices.find(device => device.ID === parseInt(existingDeviceId))) {
+                        map.removeLayer(markers[existingDeviceId]);
+                        delete markers[existingDeviceId];
+                    }
+                });
+            }
+
+            // Paneldeki verileri güncelleyen fonksiyon
+				function updatePanel(history) {
+					const panel = document.getElementById('dataGrid').getElementsByTagName('tbody')[0];
+					
+					  chart.data.datasets.forEach(dataset => {
+							dataset.data = [];
+						});
+						
+						
+								
+					panel.innerHTML = history.map(entry => {
+						// Sunucudan gelen ISO 8601 biçimindeki tarihi yerel saat dilimine dönüştür
+						const localTimestamp = new Date(entry.TIMESTAMP).toLocaleString();
+						
+						const sensorTotal = entry.SENSOR1 + entry.SENSOR2 + entry.SENSOR3;
+		
+							
+							const datasetIndex = chart.data.datasets.findIndex(dataset => dataset.label === entry.CATEGORY);
+
+							
+							chart.data.labels.push(new Date(localTimestamp));
+							chart.data.datasets[datasetIndex].data.push({
+								x: new Date(localTimestamp),
+								y: sensorTotal
+							});
+						
+						
+
+						return `
+							<tr>
+								<td>${localTimestamp}</td>
+								<td>${entry.SENSOR1}</td>
+								<td>${entry.SENSOR2}</td>
+								<td>${entry.SENSOR3}</td>
+								<td>${entry.WIND_POWER}</td>
+								<td>${entry.SOLAR_POWER}</td>
+								<td style="background-color: ${getBatteryColor(entry.BATTERY_STATUS)};">${entry.BATTERY_STATUS}</td>
+								<td>${entry.PING_INTERVAL}</td>
+								<td>${entry.POWER_MODE}</td>
+							</tr>
+						`;
+					}).join('');
+					
+					 chart.update();
+				}
+				
+				function updateChart(data, labels, name) {
+					chart.data.labels = labels.map(label => new Date(label));
+					chart.data.datasets[0].data = data;
+					chart.update();
+				}			
+			
+			// Battery status değerine göre arka plan rengini belirleyen yardımcı fonksiyon
+			function getBatteryColor(batteryStatus) {
+				if (batteryStatus >= 75) {
+					return 'rgba(0, 255, 0, 0.5)'; // Açık yeşil
+				} else if (batteryStatus >= 50) {
+					return 'rgba(255, 255, 0, 0.5)'; // Açık sarı
+				} else if (batteryStatus >= 25) {
+					return 'rgba(255, 165, 0, 0.5)'; // Açık turuncu
+				} else {
+					return 'rgba(255, 0, 0, 0.5)'; // Açık kırmızı
+				}
+			}
+			
+			setInterval(() => {
+                
+				
+				if (selectedDeviceId !== null) {
+                    ws.send(JSON.stringify({ "type": 'getLast20', "deviceId": selectedDeviceId }));
+                }
+				
+				// Geçerli zamanın son 4 dakikasını x ekseninde gösterecek şekilde ayarlayın
+				const now = new Date();
+				const fourMinutesAgo = new Date(now.getTime() - 3 * 60 * 1000);
+				chart.options.scales.x.min = fourMinutesAgo;
+				chart.options.scales.x.max = now;
+				chart.update();
+				
+            }, 1000);
+			
+        });
+    </script>
+</body>
+</html>
